@@ -1,0 +1,279 @@
+// Tahap 1.2: Compliance Locked - Final v3.1 (Fixed Relations)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// CLUSTER 1: ACTORS (PELAKU)
+// ==========================================
+
+model User {
+  id       String   @id @default(cuid())
+  name     String?
+  email    String   @unique
+  password String
+  noWhatsapp    String    @unique
+  role     UserRole @default(ASISTEN_PVL) // Default level terendah/aman
+
+  // Relasi Data
+  // "PelaporInternal" menghubungkan User (Asisten) ke tiket yang mereka input
+  laporanDibuat TiketAduan[] @relation("PelaporInternal")
+
+  timPemeriksa TimPemeriksa[] // Asisten PL bisa masuk tim ini
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  SUPERADMIN // Vendor - DifaTech (God Mode: Maintenance & Debug)
+
+  KEPALA_PERWAKILAN // Pimpinan (View All Dashboard, Approval Surat Keluar, Disposisi)
+
+  // --- SPLIT ROLE BERDASARKAN FUNGSI (PIPELINE) ---
+  ASISTEN_PVL // Gatekeeper (Input Tiket, Verifikasi Formil/Materiil, Konsultasi)
+  ASISTEN_PL // Investigator (BAP, Lapangan, Draft LHP, Monitoring LAHP)
+  ASISTEN_PC // Analyst (Kajian, Skor Opini, Pencegahan Maladmin)
+
+  ADMIN_ADMINISTRASI // Tata Usaha (Surat Menyurat Umum, Aset, Kepegawaian - Opsional)
+}
+
+model Pelapor {
+  id          String  @id @default(cuid())
+  namaLengkap String // Sesuai KTP
+  nik         String? // Wajib untuk Laporan Resmi (Simpel 4.0)
+  noWhatsapp  String  @unique // ID Unik untuk RANDA
+
+  // Demografi (Standar Simpel 4.0)
+  alamat           String?
+  pekerjaan        String?
+  statusPernikahan String?
+  jenisKelamin     String? // L/P
+
+  kategori KategoriPelapor @default(MASYARAKAT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tikets TiketAduan[]
+}
+
+model Terlapor {
+  id           String           @id @default(cuid())
+  namaInstansi String
+  kategori     KategoriInstansi // Klasifikasi sesuai Portal Data Ombudsman
+  wilayah      String // Tarakan, Bulungan, dll
+
+  tikets TiketAduan[]
+}
+
+model TimPemeriksa {
+  id String @id @default(cuid())
+
+  // Relasi ke User (Asisten)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relasi ke Tiket (Kasus)
+  tiketId String
+  tiket   TiketAduan @relation(fields: [tiketId], references: [id], onDelete: Cascade)
+
+  // Metadata Tim
+  peran      String   @default("ANGGOTA") // Bisa "KETUA_TIM" atau "ANGGOTA"
+  assignedAt DateTime @default(now())
+
+  @@unique([userId, tiketId]) // Satu user hanya boleh masuk sekali di satu tiket
+  @@index([tiketId])
+  @@index([userId])
+}
+
+// ==========================================
+// CLUSTER 2: CASE FILES (CORE LOGIC)
+// ==========================================
+
+model TiketAduan {
+  id            String  @id @default(cuid())
+  noAgendaResmi String? @unique // Sinkronisasi Manual (Buku Agenda)
+
+  // Relasi ke Pelapor (Warga/Eksternal)
+  pelaporId String
+  pelapor   Pelapor @relation(fields: [pelaporId], references: [id])
+
+  // Relasi ke User Pembuat/Inputter (Internal Asisten) - FIX ERROR RELASI
+  pembuatId String?
+  pembuat   User?   @relation("PelaporInternal", fields: [pembuatId], references: [id])
+
+  // Relasi ke Terlapor
+  terlaporId String?
+  terlapor   Terlapor? @relation(fields: [terlaporId], references: [id])
+
+  timPemeriksa TimPemeriksa[]
+
+  // Data Substansi
+  sumberAduan     SumberAduan @default(WHATSAPP_RANDA)
+  dugaanMaladmin  String[] // Tagging AI (10 Jenis Maladministrasi)
+  kronologi       String      @db.Text
+  tanggalKejadian DateTime? // Cek Daluwarsa 2 Tahun (UU 37/2008)
+  harapanPelapor  String?     @db.Text // Wajib Simpel 4.0
+
+  // Data Spasial untuk Heatmap Tahap 4.2
+  latitude  Float?
+  longitude Float?
+
+  // Fitur Compliance / Whistleblower Protection
+  isRCO               Boolean @default(false) // Reaksi Cepat Ombudsman
+  rahasiakanIdentitas Boolean @default(false) // Pasal 24 ayat 2 UU 37/2008
+  sudahLaporAtasan    Boolean @default(false) // Syarat Upaya Administratif
+
+  // State Machine (SOP Peraturan Ombudsman 48/2020 & SK 244/2020)
+  status StatusTiket @default(VERIFIKASI_FORMIL)
+
+  // Monitoring SLA (SK 244/2020)
+  deadlineFormil   DateTime? // T+14 Hari Kerja
+  deadlineMateriil DateTime? // T+30 Hari Kerja
+
+  // AI-Triage & Vision
+  instansiTerdeteksi String? // Hasil AI
+  ringkasanAI        String? @db.Text // Hasil AI
+  urgensi            String? @default("SEDANG") // TINGGI/SEDANG/RENDAH
+
+  nikTerdeteksi     String?
+  namaKtpTerdeteksi String?
+  ocrConfidence     Float?  @default(0.0) // Tingkat keyakinan AI (0-1)
+  isIdentityMatch   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  riwayatStatus RiwayatStatus[]
+  riwayatChat   PesanHistory[]
+  lampiran      Lampiran[]
+}
+
+model RiwayatStatus {
+  id       String     @id @default(cuid())
+  ticketId String
+  tiket    TiketAduan @relation(fields: [ticketId], references: [id])
+
+  statusLama StatusTiket?
+  statusBaru StatusTiket
+  keterangan String? // Alasan Pleno / Catatan Verifikasi
+  updatedBy  String // ID Admin/Pemeriksa atau "RANDA AI"
+
+  createdAt DateTime @default(now())
+}
+
+model Lampiran {
+  id        String     @id @default(cuid())
+  nama      String // Contoh: "KTP_Pelapor.pdf"
+  tipe      String // Contoh: "KTP", "SURAT_KUASA", "BUKTI_PENDUKUNG"
+  fileUrl   String // Path ke storage (S3/Uploads)
+  fileType  String // Mime type: image/jpeg, application/pdf
+  ticketId  String
+  tiket     TiketAduan @relation(fields: [ticketId], references: [id])
+  createdAt DateTime   @default(now())
+}
+
+// ==========================================
+// CLUSTER 3: OPERATIONS & CHAT
+// ==========================================
+
+model KegiatanOTS {
+  id          String   @id @default(cuid())
+  tanggal     DateTime
+  kelurahan   String
+  rt          String
+  timBertugas String[]
+
+  jmlKonsultasi   Int     @default(0)
+  jmlLaporan      Int     @default(0)
+  catatanLapangan String? @db.Text
+
+  createdAt DateTime @default(now())
+}
+
+model PesanHistory {
+  id        String   @id @default(cuid())
+  tiketId   String
+  pengirim  String // "WARGA" atau "ADMIN"
+  pesan     String   @db.Text
+  createdAt DateTime @default(now())
+
+  tiket TiketAduan @relation(fields: [tiketId], references: [id])
+}
+
+// ==========================================
+// ENUMS (STANDARISASI SK 244/2020 & DATA PUSAT)
+// ==========================================
+
+enum StatusTiket {
+  DRAFT
+  VERIFIKASI_FORMIL // Cek syarat admin (14 hari)
+  VERIFIKASI_MATERIIL // Analisa substansi (30 hari)
+  MENUNGGU_PLENO // Gatekeeper ke Pemeriksaan
+  PEMERIKSAAN // Investigasi / Klarifikasi
+  DALAM_MEDIASI // Penyelesaian Alternatif
+  SELESAI_LHP // Terbit LHP
+  SELESAI_NON_LHP // Selesai tanpa LHP
+  DITUTUP_NON_WEWENANG
+  DITUTUP_SYARAT_KURANG
+}
+
+enum Maladministrasi {
+  PENUNDAAN_BERLARUT
+  TIDAK_MEMBERIKAN_PELAYANAN
+  PENYIMPANGAN_PROSEDUR
+  PENYALAHGUNAAN_WEWENANG
+  TIDAK_KOMPETEN
+  PERMINTAAN_IMBALAN
+  TIDAK_PATUT
+  BERPIHAK
+  DISKRIMINASI
+  KONFLIK_KEPENTINGAN
+}
+
+enum JenisAduan {
+  LAPORAN
+  KONSULTASI // Non-Laporan
+}
+
+enum KategoriInstansi {
+  PEMERINTAH_DAERAH
+  KEMENTERIAN
+  LEMBAGA_NEGARA
+  KEPOLISIAN
+  TNI
+  KEJAKSAAN
+  PENGADILAN
+  BPN_AGRARIA
+  BUMN_BUMD
+  SEKOLAH_NEGERI
+  RSUD
+  SWASTA_BERJARING
+  LAINNYA
+}
+
+enum KategoriPelapor {
+  MASYARAKAT
+  KUASA_HUKUM
+  LSM
+  KORBAN_LANGSUNG
+  INSTANSI_PEMERINTAH
+}
+
+enum SumberAduan {
+  WHATSAPP_RANDA
+  INSTAGRAM_DM
+  FACEBOOK
+  OTS_JEMPUT_BOLA
+  SURAT
+  DATANG_LANGSUNG
+  SP4N_LAPOR
+  TELEPON
+}

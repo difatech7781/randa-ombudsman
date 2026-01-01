@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/lib/generated/prisma
+
+# Security keys (Wajib Block)
+gcp-key.json
+service-account.json
+firebase-admin.json
+
+# Keep vital config files (Jangan block ini!)
+!package.json
+!tsconfig.json
+!next.config.json
