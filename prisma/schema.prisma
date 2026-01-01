@@ -1,4 +1,4 @@
-// Tahap 1.2: Compliance Locked - Final v3.1 (Fixed Relations)
+// Tahap 1.2: Compliance Locked - Final v3.2 (Fixed Relation Naming)
 
 generator client {
   provider = "prisma-client-js"
@@ -14,63 +14,61 @@ datasource db {
 // ==========================================
 
 model User {
-  id       String   @id @default(cuid())
-  name     String?
-  email    String   @unique
-  password String
-  noWhatsapp    String    @unique
-  role     UserRole @default(ASISTEN_PVL) // Default level terendah/aman
+  id            String   @id @default(cuid())
+  name          String?
+  email         String   @unique
+  password      String
+  noWhatsapp    String   @unique
+  role          UserRole @default(ASISTEN_PVL) // Default level terendah/aman
 
   // Relasi Data
   // "PelaporInternal" menghubungkan User (Asisten) ke tiket yang mereka input
   laporanDibuat TiketAduan[] @relation("PelaporInternal")
 
-  timPemeriksa TimPemeriksa[] // Asisten PL bisa masuk tim ini
+  timPemeriksa  TimPemeriksa[] // Asisten PL bisa masuk tim ini
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 enum UserRole {
-  SUPERADMIN // Vendor - DifaTech (God Mode: Maintenance & Debug)
-
-  KEPALA_PERWAKILAN // Pimpinan (View All Dashboard, Approval Surat Keluar, Disposisi)
+  SUPERADMIN          // Vendor - DifaTech (God Mode: Maintenance & Debug)
+  KEPALA_PERWAKILAN   // Pimpinan (View All Dashboard, Approval Surat Keluar, Disposisi)
 
   // --- SPLIT ROLE BERDASARKAN FUNGSI (PIPELINE) ---
-  ASISTEN_PVL // Gatekeeper (Input Tiket, Verifikasi Formil/Materiil, Konsultasi)
-  ASISTEN_PL // Investigator (BAP, Lapangan, Draft LHP, Monitoring LAHP)
-  ASISTEN_PC // Analyst (Kajian, Skor Opini, Pencegahan Maladmin)
-
-  ADMIN_ADMINISTRASI // Tata Usaha (Surat Menyurat Umum, Aset, Kepegawaian - Opsional)
+  ASISTEN_PVL         // Gatekeeper (Input Tiket, Verifikasi Formil/Materiil, Konsultasi)
+  ASISTEN_PL          // Investigator (BAP, Lapangan, Draft LHP, Monitoring LAHP)
+  ASISTEN_PC          // Analyst (Kajian, Skor Opini, Pencegahan Maladmin)
+  ADMIN_ADMINISTRASI  // Tata Usaha (Surat Menyurat Umum, Aset, Kepegawaian - Opsional)
 }
 
 model Pelapor {
-  id          String  @id @default(cuid())
-  namaLengkap String // Sesuai KTP
-  nik         String? // Wajib untuk Laporan Resmi (Simpel 4.0)
-  noWhatsapp  String  @unique // ID Unik untuk RANDA
+  id               String  @id @default(cuid())
+  namaLengkap      String  // Sesuai KTP
+  nik              String? // Wajib untuk Laporan Resmi (Simpel 4.0)
+  noWhatsapp       String  @unique // ID Unik untuk RANDA
 
   // Demografi (Standar Simpel 4.0)
   alamat           String?
-  pekerjaan        String?
+  pekerjajaan      String?
   statusPernikahan String?
   jenisKelamin     String? // L/P
 
-  kategori KategoriPelapor @default(MASYARAKAT)
+  kategori         KategoriPelapor @default(MASYARAKAT)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  tikets TiketAduan[]
+  tikets           TiketAduan[]
 }
 
 model Terlapor {
   id           String           @id @default(cuid())
   namaInstansi String
   kategori     KategoriInstansi // Klasifikasi sesuai Portal Data Ombudsman
-  wilayah      String // Tarakan, Bulungan, dll
+  wilayah      String           // Tarakan, Bulungan, dll
 
-  tikets TiketAduan[]
+  tikets       TiketAduan[]
 }
 
 model TimPemeriksa {
@@ -105,7 +103,7 @@ model TiketAduan {
   pelaporId String
   pelapor   Pelapor @relation(fields: [pelaporId], references: [id])
 
-  // Relasi ke User Pembuat/Inputter (Internal Asisten) - FIX ERROR RELASI
+  // Relasi ke User Pembuat/Inputter (Internal Asisten)
   pembuatId String?
   pembuat   User?   @relation("PelaporInternal", fields: [pembuatId], references: [id])
 
@@ -117,9 +115,9 @@ model TiketAduan {
 
   // Data Substansi
   sumberAduan     SumberAduan @default(WHATSAPP_RANDA)
-  dugaanMaladmin  String[] // Tagging AI (10 Jenis Maladministrasi)
+  dugaanMaladmin  String[]    // Tagging AI (10 Jenis Maladministrasi)
   kronologi       String      @db.Text
-  tanggalKejadian DateTime? // Cek Daluwarsa 2 Tahun (UU 37/2008)
+  tanggalKejadian DateTime?   // Cek Daluwarsa 2 Tahun (UU 37/2008)
   harapanPelapor  String?     @db.Text // Wajib Simpel 4.0
 
   // Data Spasial untuk Heatmap Tahap 4.2
@@ -143,38 +141,46 @@ model TiketAduan {
   ringkasanAI        String? @db.Text // Hasil AI
   urgensi            String? @default("SEDANG") // TINGGI/SEDANG/RENDAH
 
+  softwareUsed      String? // Metadata integritas dokumen
+
   nikTerdeteksi     String?
   namaKtpTerdeteksi String?
   ocrConfidence     Float?  @default(0.0) // Tingkat keyakinan AI (0-1)
   isIdentityMatch   Boolean @default(false)
+  isEscalated       Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   riwayatStatus RiwayatStatus[]
-  riwayatChat   PesanHistory[]
+  
+  // --- UPDATED RELATION NAME ---
+  // Sebelumnya: riwayatChat
+  // Sekarang: pesanHistory (Sesuai dengan actions.ts)
+  pesanHistory  PesanHistory[] 
+  
   lampiran      Lampiran[]
 }
 
 model RiwayatStatus {
-  id       String     @id @default(cuid())
-  ticketId String
-  tiket    TiketAduan @relation(fields: [ticketId], references: [id])
+  id         String     @id @default(cuid())
+  ticketId   String
+  tiket      TiketAduan @relation(fields: [ticketId], references: [id])
 
   statusLama StatusTiket?
   statusBaru StatusTiket
-  keterangan String? // Alasan Pleno / Catatan Verifikasi
-  updatedBy  String // ID Admin/Pemeriksa atau "RANDA AI"
+  keterangan String?    // Alasan Pleno / Catatan Verifikasi
+  updatedBy  String     // ID Admin/Pemeriksa atau "RANDA AI"
 
-  createdAt DateTime @default(now())
+  createdAt  DateTime   @default(now())
 }
 
 model Lampiran {
   id        String     @id @default(cuid())
-  nama      String // Contoh: "KTP_Pelapor.pdf"
-  tipe      String // Contoh: "KTP", "SURAT_KUASA", "BUKTI_PENDUKUNG"
-  fileUrl   String // Path ke storage (S3/Uploads)
-  fileType  String // Mime type: image/jpeg, application/pdf
+  nama      String     // Contoh: "KTP_Pelapor.pdf"
+  tipe      String     // Contoh: "KTP", "SURAT_KUASA", "BUKTI_PENDUKUNG"
+  fileUrl   String     // Path ke storage (S3/Uploads)
+  fileType  String     // Mime type: image/jpeg, application/pdf
   ticketId  String
   tiket     TiketAduan @relation(fields: [ticketId], references: [id])
   createdAt DateTime   @default(now())
@@ -185,27 +191,28 @@ model Lampiran {
 // ==========================================
 
 model KegiatanOTS {
-  id          String   @id @default(cuid())
-  tanggal     DateTime
-  kelurahan   String
-  rt          String
-  timBertugas String[]
+  id              String   @id @default(cuid())
+  tanggal         DateTime
+  kelurahan       String
+  rt              String
+  timBertugas     String[]
 
   jmlKonsultasi   Int     @default(0)
   jmlLaporan      Int     @default(0)
   catatanLapangan String? @db.Text
 
-  createdAt DateTime @default(now())
+  createdAt       DateTime @default(now())
 }
 
 model PesanHistory {
   id        String   @id @default(cuid())
   tiketId   String
-  pengirim  String // "WARGA" atau "ADMIN"
+  pengirim  String   // "WARGA" atau "ADMIN"
   pesan     String   @db.Text
   createdAt DateTime @default(now())
 
-  tiket TiketAduan @relation(fields: [tiketId], references: [id])
+  // Ditambahkan onDelete: Cascade agar kalau tiket dihapus, chat ikut hilang (bersih)
+  tiket     TiketAduan @relation(fields: [tiketId], references: [id], onDelete: Cascade)
 }
 
 // ==========================================
@@ -214,13 +221,13 @@ model PesanHistory {
 
 enum StatusTiket {
   DRAFT
-  VERIFIKASI_FORMIL // Cek syarat admin (14 hari)
+  VERIFIKASI_FORMIL   // Cek syarat admin (14 hari)
   VERIFIKASI_MATERIIL // Analisa substansi (30 hari)
-  MENUNGGU_PLENO // Gatekeeper ke Pemeriksaan
-  PEMERIKSAAN // Investigasi / Klarifikasi
-  DALAM_MEDIASI // Penyelesaian Alternatif
-  SELESAI_LHP // Terbit LHP
-  SELESAI_NON_LHP // Selesai tanpa LHP
+  MENUNGGU_PLENO      // Gatekeeper ke Pemeriksaan
+  PEMERIKSAAN         // Investigasi / Klarifikasi
+  DALAM_MEDIASI       // Penyelesaian Alternatif
+  SELESAI_LHP         // Terbit LHP
+  SELESAI_NON_LHP     // Selesai tanpa LHP
   DITUTUP_NON_WEWENANG
   DITUTUP_SYARAT_KURANG
 }

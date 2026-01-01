@@ -1,14 +1,68 @@
-// app/dashboard/laporan/actions.ts Verbatim Update
-
 "use server";
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { getFormilDeadline, getMateriilDeadline } from "@/lib/compliance"; // Import Logika SLA
+import { getFormilDeadline, getMateriilDeadline } from "@/lib/compliance";
 import { analyzeChronology } from "@/lib/ai-triage";
+import { Prisma } from "@prisma/client"; 
 
+// ==========================================
+// 1. ADVANCED TYPING ARCHITECTURE
+// ==========================================
+
+// Kita definisikan "Bentuk Query" di sini supaya TypeScript paham struktur data yang complex.
+// Ini solusi untuk error: Property '_count' does not exist...
+const ticketWithDetailsQuery = Prisma.validator<Prisma.TiketAduanDefaultArgs>()({
+  include: {
+    pelapor: {
+      include: {
+        _count: {
+          select: { tikets: true } // <-- INI DIA FIX-NYA (Ambil jumlah tiket pelapor)
+        }
+      }
+    },
+    riwayatStatus: {
+      orderBy: { createdAt: 'desc' }
+    },
+    lampiran: true,
+    pesanHistory: {
+      orderBy: { createdAt: 'asc' }
+    }
+  }
+});
+
+// Export Type "Sakti" ini untuk dipakai di Page.tsx
+// Type ini otomatis sadar kalau ada field 'softwareUsed' (jika sudah di-push ke DB) dan '_count'
+export type TicketWithDetails = Prisma.TiketAduanGetPayload<typeof ticketWithDetailsQuery>;
+
+
+// ==========================================
+// 2. DATA FETCHER (READ)
+// ==========================================
+
+// Function baru untuk mengambil data detail tiket dengan Tipe yang benar
+export async function getTicketById(id: string): Promise<TicketWithDetails | null> {
+  const ticket = await prisma.tiketAduan.findUnique({
+    where: { id },
+    include: ticketWithDetailsQuery.include // <-- PENTING: Harus match dengan validator di atas
+  });
+
+  return ticket;
+}
+
+
+// ==========================================
+// 3. SERVER ACTIONS (WRITE/MUTATIONS)
+// ==========================================
 
 export async function createTicketFromWA(data: any) {
+  // === INI BAGIAN YANG HILANG (STEP 0) ===
+  // Kita harus define dulu variabelnya sebelum dipakai di bawah
+  const now = new Date();
+  const deadlineFormil = getFormilDeadline(now);   // Hitung SLA 14 hari
+  const deadlineMateriil = getMateriilDeadline(now); // Hitung SLA 30 hari
+  // ========================================
+
   // 1. Jalankan AI Triage Engine
   const analysis = await analyzeChronology(data.kronologi);
 
@@ -18,10 +72,13 @@ export async function createTicketFromWA(data: any) {
       pelaporId: data.pelaporId,
       kronologi: data.kronologi,
       sumberAduan: "WHATSAPP_RANDA",
-      dugaanMaladmin: analysis.dugaanMaladmin, // Hasil deteksi otomatis
-      harapanPelapor: analysis.instansiTerlapor, // Deteksi instansi
+      dugaanMaladmin: analysis.dugaanMaladmin,
+      harapanPelapor: analysis.instansiTerlapor, 
       status: "VERIFIKASI_FORMIL",
-      // ... SLA logic yang sudah ada
+      
+      // Sekarang variabel ini sudah ada isinya (Valid!)
+      deadlineFormil,   
+      deadlineMateriil, 
     }
   });
 

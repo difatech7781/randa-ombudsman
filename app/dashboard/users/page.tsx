@@ -54,11 +54,12 @@ export default async function UserManagementPage() {
                 <TableCell className="pl-8">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-xs">
-                      {user.name.substring(0, 2).toUpperCase()}
+                      {/* Gunakan operator || (OR) untuk fallback ke string "User" jika name null */}
+                      {(user.name || "User").substring(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <div className="text-xs font-black text-slate-800 uppercase italic tracking-tighter leading-none">
-                        {user.nama}
+                        {(user.name || "User").substring(0, 2).toUpperCase()}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1 text-[9px] font-bold text-slate-400">
                         <Mail className="w-3 h-3" /> {user.email}

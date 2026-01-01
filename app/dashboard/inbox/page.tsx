@@ -138,7 +138,9 @@ export default async function InboxPage({
                         <Clock className={`w-3.5 h-3.5 mt-0.5 ${isUrgent ? "animate-pulse" : ""}`} />
                         <div>
                           <div className="text-[11px] font-black uppercase tracking-tighter leading-none">
-                            {new Date(t.deadlineFormil).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                            {t.deadlineFormil 
+                              ? new Date(t.deadlineFormil).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) 
+                              : '-'}
                           </div>
                           {isUrgent && (
                             <span className="inline-block bg-rose-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded-sm mt-1.5 animate-pulse">

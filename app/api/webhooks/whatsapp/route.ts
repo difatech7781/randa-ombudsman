@@ -5,20 +5,22 @@ import { prisma } from "@/lib/prisma";
 import { runAITriage } from "@/lib/ai/triage-engine";
 import { getFormilDeadline, getMateriilDeadline } from "@/lib/compliance";
 import { sendWHAMessage } from "@/lib/whatsapp";
-import { extractKTPData } from "@/lib/ai/vision-engine"; // Pastikan diimport
+import { extractKTPData } from "@/lib/ai/vision-engine"; 
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { sender, message, name, mediaUrl, type } = body; // Pastikan mediaUrl tertangkap
+    const { sender, message, name, mediaUrl, type } = body; 
 
     if (!sender || !message) {
       return NextResponse.json({ error: "Invalid Payload" }, { status: 400 });
     }
 
+    // 1. Jalankan Analisa AI
     const aiAnalysis = await runAITriage(message);
     const now = new Date();
 
+    // 2. Transaksi Database
     const result = await prisma.$transaction(async (tx) => {
       const pelapor = await tx.pelapor.upsert({
         where: { noWhatsapp: sender },
@@ -32,11 +34,16 @@ export async function POST(req: Request) {
       const tiket = await tx.tiketAduan.create({
         data: {
           pelaporId: pelapor.id,
-          isiLaporan: message,
+          kronologi: message,
           status: "VERIFIKASI_FORMIL",
+          
+          // === FIX DISINI ===
+          // Gunakan .instansiTerlapor (sesuai output triage-engine.ts)
+          // Pastikan nama kolom di kiri (harapanPelapor/instansiTerdeteksi) sesuai schema.prisma kamu
           dugaanMaladmin: aiAnalysis.dugaanMaladmin,
-          instansiTerdeteksi: aiAnalysis.instansiTerdeteksi,
+          instansiTerdeteksi: aiAnalysis.instansiTerlapor, // FIXED: Property name correction
           urgensi: aiAnalysis.urgensi,
+          
           deadlineFormil: getFormilDeadline(now),
           deadlineMateriil: getMateriilDeadline(now),
         },
@@ -64,22 +71,25 @@ export async function POST(req: Request) {
     }
 
     // LOGIKAL ESCALATION: Pungli (Permintaan Imbalan) ATAU Urgensi Tinggi + Mismatch
-    const isPungli = aiAnalysis.dugaanMaladmin.includes("PERMINTAAN_IMBALAN");
+    // Kita casting ke string[] karena Enum kadang rewel saat di-check dengan .includes
+    const listMaladmin = aiAnalysis.dugaanMaladmin.map(m => m.toString());
+    const isPungli = listMaladmin.includes("PERMINTAAN_IMBALAN");
+    
     const isHighUrgency = aiAnalysis.urgensi === "TINGGI";
     const isMismatch = ocrResult && (ocrResult.nama.toUpperCase() !== result.pelapor.namaLengkap.toUpperCase());
 
     if ((isPungli || isHighUrgency) && isMismatch) {
       // Cari Asisten PVL (Admin Perwakilan) untuk diberi notifikasi
       const asistenPVL = await prisma.user.findFirst({
-        where: { role: "ADMIN_PERWAKILAN" }
+        where: { role: "ASISTEN_PVL" }
       });
 
       if (asistenPVL?.noWhatsapp) {
-        const alertMsg = `🚨 *INTERNAL ALERT: RISIKO TINGGI*\n\n` +
+        const alertMsg = `圷 *INTERNAL ALERT: RISIKO TINGGI*\n\n` +
           `Laporan terdeteksi sebagai *${isPungli ? 'PUNGLI' : 'URGENSI TINGGI'}* namun ID Pelapor *TIDAK COCOK* (Mismatch).\n\n` +
-          `📍 ID Tiket: #${result.tiket.id}\n` +
-          `👤 Input: ${result.pelapor.namaLengkap}\n` +
-          `🤖 KTP: ${ocrResult?.nama || "Tidak Terbaca"}\n\n` +
+          `桃 ID Tiket: #${result.tiket.id}\n` +
+          `側 Input: ${result.pelapor.namaLengkap}\n` +
+          `､KTP: ${ocrResult?.nama || "Tidak Terbaca"}\n\n` +
           `Segera cek Dashboard RANDA untuk tindak lanjut manual.`;
         
         await sendWHAMessage(asistenPVL.noWhatsapp, alertMsg);
@@ -92,7 +102,7 @@ export async function POST(req: Request) {
       day: 'numeric', month: 'long', year: 'numeric'
     });
 
-    const replyMessage = `Halo Pak/Bu ${name || 'Pelapor'}, Laporan Anda diterima dengan *ID Tiket: #${result.tiket.id}*. Tahap verifikasi selesai paling lambat *${deadlineFormatted}*. 🚀`;
+    const replyMessage = `Halo Pak/Bu ${name || 'Pelapor'}, Laporan Anda diterima dengan *ID Tiket: #${result.tiket.id}*. Tahap verifikasi selesai paling lambat *${deadlineFormatted}*. 噫`;
     await sendWHAMessage(sender, replyMessage);
 
     return NextResponse.json({ success: true, ticketId: result.tiket.id });

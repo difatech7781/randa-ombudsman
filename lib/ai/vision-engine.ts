@@ -37,7 +37,11 @@ export async function extractKTPData(buffer: Buffer) {
       .toBuffer();
 
     // 3. OCR EXECUTION: Kirim Enhanced Buffer ke Google Cloud Vision
-    const [result] = await client.textDetection({ content: enhancedBuffer });
+    // FIX: Bungkus 'content' di dalam properti 'image' sesuai format API Google
+    const [result] = await client.textDetection({ 
+      image: { content: enhancedBuffer } 
+    });
+    
     const fullText = result.fullTextAnnotation?.text || "";
 
     if (!fullText) return null;

@@ -2,7 +2,9 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: ["class"],
+  // FIX: Ubah dari ["class"] menjadi "class" (String, bukan Array)
+  darkMode: "class", 
+  
   content: [
     "./pages/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",

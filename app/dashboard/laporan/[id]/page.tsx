@@ -1,6 +1,5 @@
 // app/dashboard/laporan/[id]/page.tsx
 
-import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { 
@@ -16,12 +15,16 @@ import {
   BrainCircuit,
   Fingerprint,
   UserCheck,
-  AlertTriangle
+  AlertTriangle,
+  ShieldAlert
 } from "lucide-react";
 import TimelineAudit from "@/components/TimelineAudit"; 
 import StatusUpdateAction from "@/components/StatusUpdateAction"; 
 import { Badge } from "@/components/ui/badge";
 import SLACountdown from "@/components/SLACountdown";
+
+// IMPORT PENTING: Mengambil Data Fetcher & Type Definition dari Actions
+import { getTicketById, type TicketWithDetails } from "../actions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -31,26 +34,9 @@ export default async function DetailLaporanPage(props: PageProps) {
   const params = await props.params;
   const ticketId = params.id;
 
-  // STEP 1: Fetch data lengkap termasuk field OCR hasil Vision AP
-  const ticket = await prisma.tiketAduan.findUnique({
-    where: { id: ticketId },
-    include: { 
-      pelapor: {
-        include: {
-          _count: {
-            select: { tikets: true }
-          }
-        }
-      },
-      riwayatChat: { orderBy: { createdAt: 'asc' } },
-      riwayatStatus: { orderBy: { createdAt: 'desc' } },
-      lampiran: true, 
-
-      nikTerdeteksi: true,
-      namaKtpTerdeteksi: true,
-      isIdentityMatch: true,
-    },
-  });
+  // STEP 1: Fetch data menggunakan Server Action yang sudah di-type dengan benar
+  // Kita tidak pakai prisma langsung di sini agar Logic Query terpusat di actions.ts
+  const ticket: TicketWithDetails | null = await getTicketById(ticketId);
 
   if (!ticket) return notFound();
 
@@ -91,7 +77,7 @@ export default async function DetailLaporanPage(props: PageProps) {
               </h2>
               <div className="flex gap-2">
                 {/* SUNTIKAN: AI ENHANCEMENT INDICATOR */}
-                {/* @ts-ignore */}
+                {/* @ts-ignore: Field ini opsional di schema, gunakan safe access */}
                 {ticket.isEnhanced && (
                   <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] font-black uppercase">
                     <BrainCircuit className="w-3 h-3 mr-1" /> AI Enhanced
@@ -99,13 +85,14 @@ export default async function DetailLaporanPage(props: PageProps) {
                 )}
 
                 {/* Indikator Manipulasi Digital */}
-                {/* @ts-ignore */}
+                {/* @ts-ignore: Pastikan field 'isEdited' ada di schema.prisma jika ingin type-safe */}
                 {ticket.isEdited && (
                   <Badge className="bg-orange-50 text-orange-700 border-orange-200 text-[9px] font-black uppercase">
                     <AlertTriangle className="w-3 h-3 mr-1" /> Edited Metadata Detected
                   </Badge>
                 )}
-                {/* @ts-ignore - ticket.isIdentityMatch dari schema terbaru */}
+                
+                {/* @ts-ignore: Pastikan field 'isIdentityMatch' ada di schema.prisma */}
                 {ticket.isIdentityMatch ? (
                   <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] font-black uppercase">
                     <ShieldCheck className="w-3 h-3 mr-1" /> Identity Match
@@ -118,23 +105,26 @@ export default async function DetailLaporanPage(props: PageProps) {
               </div>
             </div>
             
-              {/* ALERTA TAMBAHAN UNTUK MANIPULASI */}
-              {/* @ts-ignore */}
-              {ticket.isEdited && (
-                <div className="mt-4 p-3 bg-orange-50 border border-orange-100 rounded-lg flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5 text-orange-600" />
-                  <div>
-                    <p className="text-[11px] font-bold text-orange-800 uppercase">Peringatan Integritas Dokumen</p>
-                    <p className="text-[10px] text-orange-700">
-                      Metadata foto menunjukkan jejak penggunaan software: <span className="font-black italic">{ticket.softwareUsed}</span>. 
-                      Harap verifikasi keaslian dokumen fisik KTP.
-                    </p>
-                  </div>
+            {/* ALERTA TAMBAHAN UNTUK MANIPULASI */}
+            {/* Menggunakan Casting 'any' untuk field yang mungkin belum ada di Schema tapi ada di Runtime */}
+            {(ticket as any).isEdited && (
+              <div className="mt-4 p-3 bg-orange-50 border border-orange-100 rounded-lg flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-orange-600" />
+                <div>
+                  <p className="text-[11px] font-bold text-orange-800 uppercase">Peringatan Integritas Dokumen</p>
+                  <p className="text-[10px] text-orange-700">
+                    Metadata foto menunjukkan jejak penggunaan software:{" "}
+                    <span className="font-black italic">
+                        {/* Fallback string agar UI tidak pecah */}
+                        {(ticket as any).softwareUsed || "Tidak Teridentifikasi"}
+                    </span>.
+                    Harap verifikasi keaslian dokumen fisik KTP.
+                  </p>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               {/* HASIL EKSTRAKSI GOOGLE VISION */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 relative">
                 <div className="absolute top-2 right-2 opacity-10">
@@ -193,11 +183,14 @@ export default async function DetailLaporanPage(props: PageProps) {
             </div>
           </div>
 
-          {/* CARD IDENTITAS ASLI PELAPOR (Verbatim) */}
+          {/* CARD IDENTITAS ASLI PELAPOR */}
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-start mb-6">
               <div className="space-y-1">
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Profil Pelapor</h2>
+                {/* FIXED: Error _count hilang karena kita pakai type TicketWithDetails 
+                   yang sudah men-define struktur _count dari actions.ts
+                */}
                 {ticket.pelapor._count.tikets > 1 && (
                   <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
                     <AlertTriangle className="w-3 h-3 mr-1" /> Pelapor Berulang ({ticket.pelapor._count.tikets} Laporan)
@@ -392,5 +385,6 @@ export default async function DetailLaporanPage(props: PageProps) {
         </div>
       </div>
     
+    </div>
   );
 }

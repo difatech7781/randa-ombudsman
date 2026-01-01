@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { analyzeComplaint } from "@/lib/gemini";
 import { revalidatePath } from "next/cache";
+import { PrismaClient, SumberAduan } from "@prisma/client";
 
 export async function submitManualReport(formData: FormData) {
   const nama = formData.get("nama") as string;
@@ -28,7 +29,7 @@ export async function submitManualReport(formData: FormData) {
             }
           }
         },
-        sumberAduan: sumber,
+        sumberAduan: sumber as SumberAduan,
         kronologi: kronologi,
         dugaanMaladmin: aiResult?.dugaan_maladmin || [],
         harapanPelapor: `Terlapor: ${aiResult?.nama_instansi || '-'}`,

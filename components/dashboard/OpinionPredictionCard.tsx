@@ -11,7 +11,8 @@ import {
   Siren,
   ChevronRight,
   FileWarning,
-  Printer
+  Printer,
+  Shield // <-- Shield sudah ditambahkan
 } from "lucide-react";
 import { useMockRole } from "@/contexts/MockRoleContext";
 
@@ -20,7 +21,7 @@ const regionsData = [
   {
     id: 1,
     name: "Pemerintah Kota Tarakan",
-    baseScore: 92.5, // Seharusnya Zona Hijau (Tertinggi)
+    baseScore: 92.5,
     maladminCount: 0,
     recommendationIgnored: false,
     predictedZone: "green",
@@ -30,10 +31,10 @@ const regionsData = [
   {
     id: 2,
     name: "Pemerintah Kab. Bulungan",
-    baseScore: 84.0, // Zona Hijau (Tinggi)
-    maladminCount: 3, // Ada temuan Maladministrasi
+    baseScore: 84.0,
+    maladminCount: 3,
     recommendationIgnored: false,
-    predictedZone: "yellow", // TURUN KELAS karena Maladministrasi
+    predictedZone: "yellow",
     predictedLabel: "Kualitas Sedang (Potensi Maladmin)", 
     trend: "down",
     warning: "3 Laporan Terbukti Maladministrasi belum selesai."
@@ -41,10 +42,10 @@ const regionsData = [
   {
     id: 3,
     name: "Pemerintah Kab. Nunukan",
-    baseScore: 79.5, // Zona Kuning
+    baseScore: 79.5,
     maladminCount: 5,
-    recommendationIgnored: true, // FATAL: Mengabaikan Rekomendasi
-    predictedZone: "red", // JATUH ke Zona Merah/Hitam
+    recommendationIgnored: true,
+    predictedZone: "red",
     predictedLabel: "Kualitas Terendah (Danger)",
     trend: "critical",
     warning: "Mengabaikan Rekomendasi Ombudsman (Blacklist Opini)."
@@ -53,6 +54,13 @@ const regionsData = [
 
 export default function OpinionPredictionCard() {
   const { canAccess, currentRole } = useMockRole();
+
+  // === 1. DEFINISI HANDLER (Fix Error: Cannot find name) ===
+  const handleGenerateLetter = (regionName: string) => {
+    // TODO: Sambungkan ke Server Action generate PDF
+    console.log(`[SYSTEM] Menyiapkan Draft Surat Peringatan untuk: ${regionName}`);
+    alert(`[MOCK ACTION] Sistem sedang menyusun Surat Peringatan Dini untuk ${regionName} (Format PDF).`);
+  };
 
   return (
     <Card className="rounded-[32px] border-slate-100 shadow-lg bg-white overflow-hidden relative group">
@@ -103,13 +111,14 @@ export default function OpinionPredictionCard() {
                         <Button 
                             size="sm" 
                             onClick={() => handleGenerateLetter(region.name)}
-                            className="..."
+                            // Fix: className yang tadinya "..." sekarang diberi style
+                            className="h-7 bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 shadow-sm text-[9px] font-black uppercase tracking-widest w-fit"
                         >
-                            <FileWarning className="w-3 h-3 shrink-0" /> Buat Surat Peringatan
+                            <FileWarning className="w-3 h-3 shrink-0 mr-1" /> Buat Surat Peringatan
                         </Button>
                       ) : (
                         // Jika tidak punya akses (misal PVL/PL), tampilkan pesan terkunci
-                        <div className="p-2 bg-slate-100 rounded border border-slate-200 text-center opacity-70 cursor-not-allowed">
+                        <div className="p-2 bg-slate-100 rounded border border-slate-200 text-center opacity-70 cursor-not-allowed w-fit">
                           <p className="text-[9px] font-bold text-slate-400 uppercase flex items-center justify-center gap-1">
                             <Shield className="w-3 h-3" /> Akses Terbatas: PC Only
                           </p>
@@ -120,11 +129,11 @@ export default function OpinionPredictionCard() {
 
                 {/* Peringatan Kontekstual */}
                 {region.warning ? (
-                  <p className="text-[9px] font-bold text-rose-500 flex items-center gap-1.5 bg-rose-50 w-fit px-2 py-1 rounded-md">
+                  <p className="text-[9px] font-bold text-rose-500 flex items-center gap-1.5 bg-rose-50 w-fit px-2 py-1 rounded-md mt-1">
                     <TrendingDown className="w-3 h-3" /> {region.warning}
                   </p>
                 ) : (
-                  <p className="text-[9px] font-bold text-emerald-500 flex items-center gap-1.5">
+                  <p className="text-[9px] font-bold text-emerald-500 flex items-center gap-1.5 mt-1">
                     <TrendingUp className="w-3 h-3" /> Performa stabil, pertahankan.
                   </p>
                 )}
@@ -149,22 +158,6 @@ export default function OpinionPredictionCard() {
                     </span>
                   </div>
                 </div>
-
-                {/* ACTION AREA: Tombol Muncul HANYA Jika Zona Merah */}
-                {region.predictedZone === 'red' && (
-                  <div className="pt-2 border-t border-rose-100 flex items-center justify-between">
-                      <span className="text-[8px] font-bold text-rose-400 uppercase tracking-widest italic">
-                          *Tindakan Korektif Diperlukan
-                      </span>
-                      <Button 
-                          size="sm" 
-                          onClick={() => handleGenerateLetter(region.name)}
-                          className="h-7 bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 shadow-sm shadow-rose-200 text-[9px] font-black uppercase tracking-widest transition-all active:scale-95"
-                      >
-                          <FileWarning className="w-3 h-3 shrink-0" /> Buat SP
-                      </Button>
-                  </div>
-                )}
               </div>
 
             </div>

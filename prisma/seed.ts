@@ -1,16 +1,20 @@
 // prisma/seed.ts
 import { PrismaClient, UserRole } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('--- STARTING SYSTEM SEEDING: RANDA ORI KALTARA ---');
 
-  // 1. CLEANUP
+  // 1. CLEANUP (Hapus data lama biar bersih)
   try {
+    // Urutan delete: Child -> Parent (biar gak error Foreign Key)
     await prisma.timPemeriksa.deleteMany();
-    await prisma.riwayatChat.deleteMany();
+    
+    // UPDATE DISINI: Menggunakan nama relasi baru
+    await prisma.pesanHistory.deleteMany(); 
+    
     await prisma.riwayatStatus.deleteMany();
     await prisma.lampiran.deleteMany();
     await prisma.tiketAduan.deleteMany();
@@ -18,7 +22,8 @@ async function main() {
     await prisma.user.deleteMany();
     console.log('✅ Legacy data cleared.');
   } catch (e) {
-    console.log('⚠️ First run cleanup skipped.');
+    console.log('⚠️ First run cleanup skipped or partial error.');
+    console.error(e); // Tampilkan error kalau ada yang bandel
   }
 
   // 2. CREATE SUPERADMIN (DifaTech)
@@ -31,7 +36,7 @@ async function main() {
       email: 'admin@difatech.id',
       password: superAdminPassword,
       role: UserRole.SUPERADMIN,
-      noWhatsapp: '628114403196', // Nomor Anda/Vendor
+      noWhatsapp: '628114403196', 
     },
   });
   console.log('👤 Superadmin Created');
@@ -46,7 +51,7 @@ async function main() {
       email: 'kepala@ombudsman.go.id',
       password: kaperPassword,
       role: UserRole.KEPALA_PERWAKILAN,
-      noWhatsapp: '628120000001', // Dummy WA Kaper
+      noWhatsapp: '628120000001',
     },
   });
   console.log('👤 Kepala Perwakilan Created');
@@ -61,7 +66,7 @@ async function main() {
       email: 'pvl@ombudsman.go.id',
       password: pvlPassword,
       role: UserRole.ASISTEN_PVL,
-      noWhatsapp: '628130000002', // Dummy WA PVL
+      noWhatsapp: '628130000002',
     },
   });
   console.log('👤 Asisten PVL Created');
@@ -76,7 +81,7 @@ async function main() {
       email: 'pl@ombudsman.go.id',
       password: plPassword,
       role: UserRole.ASISTEN_PL,
-      noWhatsapp: '628140000003', // Dummy WA PL
+      noWhatsapp: '628140000003',
     },
   });
   console.log('👤 Asisten PL Created');
@@ -91,7 +96,7 @@ async function main() {
       email: 'pc@ombudsman.go.id',
       password: pcPassword,
       role: UserRole.ASISTEN_PC,
-      noWhatsapp: '628150000004', // Dummy WA PC
+      noWhatsapp: '628150000004',
     },
   });
   console.log('👤 Asisten PC Created');

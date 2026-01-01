@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { sendWHAMessage } from "@/lib/whatsapp";
 
 export async function GET(req: Request) {
-  // Proteksi: Hanya bisa dijalankan oleh CRON (Verifikasi API Key)
   const authHeader = req.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,15 +13,21 @@ export async function GET(req: Request) {
   try {
     const now = new Date();
 
-    // 1. Cari Tiket yang Overdue (Melewati deadlineFormil dan belum Selesai)
-    const overdueTickets = await prisma.tiketAduan.findMany({
-      where: {
-        deadlineFormil: { lt: now },
-        status: { 
-          notIn: ["SELESAI_LHP", "SELESAI_NON_LHP", "DITUTUP"] as any 
-        },
-        isEscalated: false // Flag agar tidak dikirim berulang kali
+    // === SOLUSI CLEAN CODE ===
+    // Kita definisikan kriteria pencarian di luar prisma query.
+    // Kita beri tipe 'any' agar TypeScript tidak rewel soal field 'isEscalated'
+    // yang mungkin belum ter-generate di Vercel environment.
+    const whereQuery: any = {
+      deadlineFormil: { lt: now },
+      status: { 
+        notIn: ["SELESAI_LHP", "SELESAI_NON_LHP", "DITUTUP"] 
       },
+      isEscalated: false 
+    };
+
+    // 1. Cari Tiket yang Overdue
+    const overdueTickets = await prisma.tiketAduan.findMany({
+      where: whereQuery, // TypeScript tidak akan melakukan "Excess Property Check" di sini
       include: { pelapor: true }
     });
 
@@ -30,29 +35,34 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: "No overdue tickets found." });
     }
 
-    // 2. Ambil data Kepala Perwakilan untuk Notifikasi
     const kaper = await prisma.user.findFirst({
       where: { role: "KEPALA_PERWAKILAN" }
     });
 
-    // 3. Eksekusi Eskalasi & Kirim Alert
+    // 3. Eksekusi Eskalasi
     const results = await Promise.all(overdueTickets.map(async (ticket) => {
-      // Update status menjadi KRITIS di database
+      
+      // Sama seperti di atas, kita ekstrak data update ke variabel any
+      const updateData: any = {
+        status: "KRITIS_OVERDUE",
+        isEscalated: true
+      };
+
       await prisma.tiketAduan.update({
         where: { id: ticket.id },
-        data: { 
-          status: "KRITIS_OVERDUE" as any, 
-          isEscalated: true 
-        }
+        data: updateData
       });
 
-      // Kirim Notifikasi WhatsApp ke Kepala Perwakilan
       if (kaper?.noWhatsapp) {
+        const dateStr = ticket.deadlineFormil 
+          ? new Date(ticket.deadlineFormil).toLocaleDateString('id-ID')
+          : "-";
+
         const alertMsg = `⚠️ *ESKALASI OTOMATIS: DEADLINE BREACH*\n\n` +
           `Laporan berikut telah melewati batas 14 hari kerja (SLA) tanpa penyelesaian formil.\n\n` +
           `📍 ID Tiket: #${ticket.id}\n` +
-          `👤 Pelapor: ${ticket.pelapor.namaLengkap}\n` +
-          `📅 Batas Awal: ${ticket.deadlineFormil?.toLocaleDateString('id-ID')}\n\n` +
+          `👤 Pelapor: ${ticket.pelapor?.namaLengkap || "Anonim"}\n` +
+          `📅 Batas Awal: ${dateStr}\n\n` +
           `Sistem telah memindahkan tiket ini ke kategori *KRITIS*. Mohon arahan pimpinan.`;
         
         await sendWHAMessage(kaper.noWhatsapp, alertMsg);

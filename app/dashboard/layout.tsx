@@ -28,7 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
 
           {/* 2. TOP MENU NAVIGATION (Pengganti Sidebar) */}
-          <TopNavbar userRole={session.user.role || "STAFF"} />
+          <TopNavbar userRole={session.user?.role || "STAFF"} />
 
           {/* 3. SEARCH & PROFILE */}
           <div className="flex items-center gap-6 ml-auto">

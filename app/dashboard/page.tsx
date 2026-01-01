@@ -110,16 +110,48 @@ export default async function DashboardPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {slaRiskTickets.slice(0, 5).map((t) => (
-              <TableRow key={t.id} className="border-slate-50 group hover:bg-slate-50/50 transition-colors">
-                <TableCell className="py-3 font-mono text-[11px] font-black text-indigo-600 pl-6">#{t.id.substring(0,8)}</TableCell>
-                <TableCell className="py-3">
-                  <Badge variant="secondary" className="bg-slate-100 text-[9px] font-black uppercase text-slate-500 rounded-md">{t.status.replace("_", " ")}</Badge>
-                </TableCell>
-                <TableCell className="py-3 text-[10px] font-bold text-slate-500">{new Date(t.deadline).toLocaleDateString()}</TableCell>
-                <TableCell className="py-3 text-right text-[10px] font-black text-rose-600 pr-6">2 HARI LAGI</TableCell>
-              </TableRow>
-            ))}
+            {slaRiskTickets.slice(0, 5).map((t) => {
+              // --- LOGIC COUNTDOWN DINAMIS DIMULAI ---
+              const now = new Date();
+              const deadline = t.deadlineFormil ? new Date(t.deadlineFormil) : null;
+              
+              let statusWaktu = { text: "-", color: "text-slate-300" };
+
+              if (deadline) {
+                // Hitung selisih dalam milidetik -> konversi ke hari
+                const diffTime = deadline.getTime() - now.getTime();
+                const sisaHari = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                // Tentukan Text & Warna berdasarkan urgensi
+                if (sisaHari < 0) {
+                  statusWaktu = { text: `TELAT ${Math.abs(sisaHari)} HARI`, color: "text-rose-600 font-black animate-pulse" };
+                } else if (sisaHari === 0) {
+                  statusWaktu = { text: "DEADLINE HARI INI", color: "text-amber-600 font-black" };
+                } else if (sisaHari <= 3) {
+                  statusWaktu = { text: `${sisaHari} HARI LAGI`, color: "text-amber-600 font-bold" };
+                } else {
+                  statusWaktu = { text: `${sisaHari} HARI LAGI`, color: "text-emerald-600 font-medium" };
+                }
+              }
+              // --- LOGIC COUNTDOWN SELESAI ---
+
+              return (
+                <TableRow key={t.id} className="border-slate-50 group hover:bg-slate-50/50 transition-colors">
+                  <TableCell className="py-3 font-mono text-[11px] font-black text-indigo-600 pl-6">#{t.id.substring(0,8)}</TableCell>
+                  <TableCell className="py-3">
+                    <Badge variant="secondary" className="bg-slate-100 text-[9px] font-black uppercase text-slate-500 rounded-md">{t.status.replace("_", " ")}</Badge>
+                  </TableCell>
+                  <TableCell className="py-3 text-[10px] font-bold text-slate-500">
+                    {/* Format Tanggal Indonesia */}
+                    {t.deadlineFormil ? new Date(t.deadlineFormil).toLocaleDateString("id-ID") : "-"}
+                  </TableCell>
+                  {/* Tampilan Dinamis Berwarna */}
+                  <TableCell className={`py-3 text-right text-[10px] pr-6 ${statusWaktu.color}`}>
+                    {statusWaktu.text}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </Card>
