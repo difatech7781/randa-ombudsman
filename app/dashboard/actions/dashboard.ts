@@ -1,15 +1,29 @@
 // app/dashboard/actions/dashboard.ts
-
 "use server";
 
 import { prisma } from "@/lib/prisma";
 
+/**
+ * LOGIC NORMALISASI WILAYAH
+ * Memastikan data wilayah dari berbagai sumber (WA/Web) seragam untuk agregasi.
+ */
+const normalizeRegion = (name: string | null) => {
+  if (!name) return "WILAYAH_LUAR_KALTARA";
+  return name.toUpperCase()
+    .replace("KABUPATEN ", "")
+    .replace("KAB. ", "")
+    .trim();
+};
+
 export async function getDashboardStats() {
   try {
     const totalLaporan = await prisma.tiketAduan.count();
+    
+    // HAPUS artifact [cite] di sini
     const verifikasi = await prisma.tiketAduan.count({
-      where: { status: "VERIFIKASI_FORMIL" as any }
+      where: { status: "VERIFIKASI_FORMIL" as any } 
     });
+    
     const waitingPleno = await prisma.tiketAduan.count({
       where: { status: "MENUNGGU_PLENO" as any }
     });
@@ -30,95 +44,115 @@ export async function getDashboardStats() {
   }
 }
 
-// SUNTIKAN STRATEGIS: GEOSPATIAL ANALYTICS & REGION RANKING
+/**
+ * STRATEGIC ANALYTICS: GEOSPATIAL & ANOMALY DETECTION
+ */
 export async function getRegionAnalytics() {
   try {
+    // Ambil data tiket dengan relasi terlapor untuk identifikasi wilayah
     const tickets = await prisma.tiketAduan.findMany({
-      select: {
-        dugaanMaladmin: true,
+      include: { 
         terlapor: {
-          select: { wilayah: true }
-        }
+          select: { wilayah: true, namaInstansi: true }
+        } 
       }
     });
 
-    // 1. Agregasi Data per Wilayah
-    const regionMap = tickets.reduce((acc: any, t) => {
-      const region = t.terlapor?.wilayah || "WILAYAH_LUAR_KALTARA";
+    // Aggregasi Manual (Group By Region)
+    const statsMap: Record<string, { 
+      count: number; 
+      maladminStats: Record<string, number> 
+    }> = {};
+
+    tickets.forEach(t => {
+      // Logic Kunci: Jika terlapor kosong, masukkan ke 'BELUM_TERDATA'
+      const region = normalizeRegion(t.terlapor?.wilayah || "BELUM_TERDATA");
       
-      if (!acc[region]) {
-        acc[region] = { count: 0, maladminStats: {} };
+      if (!statsMap[region]) {
+        statsMap[region] = { count: 0, maladminStats: {} };
       }
       
-      acc[region].count += 1;
+      statsMap[region].count += 1;
       
-      // 2. Hitung statistik Maladmin per wilayah (Data Feed dari AI Triage)
-      t.dugaanMaladmin.forEach((m: string) => {
-        acc[region].maladminStats[m] = (acc[region].maladminStats[m] || 0) + 1;
-      });
-      
-      return acc;
-    }, {});
+      // Hitung statistik Maladmin per wilayah untuk mencari isu dominan
+      if (t.dugaanMaladmin && Array.isArray(t.dugaanMaladmin)) {
+        t.dugaanMaladmin.forEach((m: string) => {
+          statsMap[region].maladminStats[m] = (statsMap[region].maladminStats[m] || 0) + 1;
+        });
+      }
+    });
 
-    // 3. Transformasi ke format Ranking Array
-    const result = Object.entries(regionMap).map(([name, data]: any) => {
-      // Cari Maladmin dominan di wilayah tersebut
+    // Transformasi ke format Ranking Array
+    const result = Object.entries(statsMap).map(([name, data]) => {
+      // Cari Maladmin dominan (Mode)
       const topMaladminEntry = Object.entries(data.maladminStats)
-        .sort((a: any, b: any) => b[1] - a[1])[0];
+        .sort((a, b) => b[1] - a[1])[0];
 
       return {
         name,
         count: data.count,
-        topMaladmin: topMaladminEntry ? topMaladminEntry[0] : "DATA_MINIM",
+        isAnomaly: data.count > 10, // Threshold strategis
+        topMaladmin: topMaladminEntry ? topMaladminEntry[0] : "PENDATAAN",
       };
     });
 
-    // Urutkan berdasarkan Kabupaten Paling Bermasalah (Count terbanyak)
+    // Urutkan: Wilayah dengan masalah terbanyak di atas
     return result.sort((a, b) => b.count - a.count);
 
   } catch (error) {
-    console.error("Geospatial Analytics Error:", error);
+    console.error("Strategic Analytics Error:", error);
     return [];
   }
 }
 
-// FUNGSI LAINNYA TETAP VERBATIM
 export async function getRecentTickets() {
-  return await prisma.tiketAduan.findMany({
-    take: 5,
-    orderBy: { createdAt: "desc" },
-    include: { pelapor: { select: { namaLengkap: true } } },
-  });
+  try {
+    return await prisma.tiketAduan.findMany({
+      take: 8,
+      orderBy: { createdAt: "desc" },
+      include: { pelapor: { select: { namaLengkap: true } } }, 
+    });
+  } catch (error) {
+    return [];
+  }
 }
 
 export async function getSLARiskData() {
-  return await prisma.tiketAduan.findMany({
-    where: {
-      status: { in: ["VERIFIKASI_FORMIL", "VERIFIKASI_MATERIIL"] as any }
-    },
-    select: {
-      id: true,
-      status: true,
-      createdAt: true,
-      deadlineFormil: true,
-      pelapor: { select: { namaLengkap: true } }
-    },
-    orderBy: { deadlineFormil: 'asc' }
-  });
+  try {
+    return await prisma.tiketAduan.findMany({
+      where: {
+        status: { in: ["VERIFIKASI_FORMIL", "VERIFIKASI_MATERIIL"] as any }
+      },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        deadlineFormil: true,
+        pelapor: { select: { namaLengkap: true } }
+      },
+      orderBy: { deadlineFormil: 'asc' }
+    });
+  } catch (error) {
+    return [];
+  }
 }
 
 export async function getTopInstansi() {
-  const result = await prisma.tiketAduan.groupBy({
-    by: ['harapanPelapor'], // Kita asumsikan field ini menyimpan instansi terdeteksi sementara
-    _count: { _all: true },
-    orderBy: { _count: { harapanPelapor: 'desc' } },
-    take: 5,
-  });
+  try {
+    // Analisis Top 5 Instansi Terlapor
+    const result = await prisma.terlapor.findMany({
+      take: 5,
+      orderBy: { tikets: { _count: 'desc' } },
+      include: { _count: { select: { tikets: true } } }
+    });
 
-  return result.map(r => ({
-    name: r.harapanPelapor || "Lainnya",
-    count: r._count._all
-  }));
+    return result.map(r => ({
+      name: r.namaInstansi,
+      count: r._count.tikets
+    }));
+  } catch (error) {
+    return [];
+  }
 }
 
 export async function getAverageVerificationSpeed() {
@@ -137,5 +171,29 @@ export async function getAverageVerificationSpeed() {
     return parseFloat(rataRataHari.toFixed(1));
   } catch (error) {
     return 0;
+  }
+}
+
+export async function getPipelineStats() {
+  try {
+    const tickets = await prisma.tiketAduan.findMany({
+      select: { status: true }
+    });
+
+    const stats = {
+      pvl: tickets.filter(t => 
+        ["VERIFIKASI_FORMIL", "VERIFIKASI_MATERIIL"].includes(t.status as any)
+      ).length,
+      pl: tickets.filter(t => 
+        ["MENUNGGU_PLENO", "PEMERIKSAAN", "DALAM_MEDIASI"].includes(t.status as any)
+      ).length,
+      pc: tickets.filter(t => 
+        ["SELESAI_LHP", "SELESAI_NON_LHP"].includes(t.status as any)
+      ).length,
+    };
+
+    return stats;
+  } catch (error) {
+    return { pvl: 0, pl: 0, pc: 0 };
   }
 }

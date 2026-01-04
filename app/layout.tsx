@@ -1,12 +1,11 @@
 // app/layout.tsx
 import type { Metadata } from "next";
-import { Inter } from "next/font/google"; // Ganti ke Inter
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { MockRoleProvider } from "@/contexts/MockRoleContext";
 import RoleSwitcher from "@/components/debug/RoleSwitcher";
+import AuthProvider from "@/components/providers/SessionProvider";
 
-
-// Inisialisasi Inter dengan variabel CSS agar bisa dibaca Tailwind
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
@@ -26,12 +25,14 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className={`${inter.variable} font-sans antialiased`}>
-        {/* Bungkus Children dengan Provider Mock */}
-        <MockRoleProvider>
-          {children}
-          {/* Pasang Widget Role Switcher agar muncul di semua halaman */}
-          <RoleSwitcher /> 
-        </MockRoleProvider>
+        {/* FIX: AuthProvider paling luar, MockRoleProvider di dalam agar session tersedia bagi simulator */}
+        <AuthProvider>
+          <MockRoleProvider>
+            {children}
+            {/* Widget switcher muncul di semua halaman untuk memudahkan QA */}
+            <RoleSwitcher /> 
+          </MockRoleProvider>
+        </AuthProvider>
       </body>
     </html>
   );

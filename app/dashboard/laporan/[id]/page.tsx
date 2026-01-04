@@ -21,7 +21,7 @@ import {
 import TimelineAudit from "@/components/TimelineAudit"; 
 import StatusUpdateAction from "@/components/StatusUpdateAction"; 
 import { Badge } from "@/components/ui/badge";
-import SLACountdown from "@/components/SLACountdown";
+import SLACountdown from "@/components/dashboard/SLACountdown";
 
 // IMPORT PENTING: Mengambil Data Fetcher & Type Definition dari Actions
 import { getTicketById, type TicketWithDetails } from "../actions";

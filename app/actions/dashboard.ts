@@ -53,3 +53,27 @@ export async function getRecentTickets() {
 
   return tickets;
 }
+
+export async function getRegionAnalytics() {
+  try {
+    const result = await prisma.terlapor.groupBy({
+      by: ['wilayah'],
+      _count: {
+        _all: true
+      },
+      orderBy: {
+        _count: {
+          wilayah: 'desc'
+        }
+      }
+    });
+
+    return result.map(r => ({
+      name: r.wilayah || "Tidak Teridentifikasi",
+      count: r._count._all
+    }));
+  } catch (error) {
+    console.error("Region Analytics Error:", error);
+    return [];
+  }
+}

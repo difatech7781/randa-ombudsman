@@ -22,7 +22,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // 1. SIMPLE CAPTCHA LOGIC: Pencegahan Bot Otomatis
+  // 1. SIMPLE CAPTCHA LOGIC
   const generateCaptcha = () => {
     const num1 = Math.floor(Math.random() * 10) + 1;
     const num2 = Math.floor(Math.random() * 10) + 1;
@@ -36,7 +36,7 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validasi Captcha sebelum hit API
+    // Validasi Captcha
     if (parseInt(captchaInput) !== captchaQuestion.a) {
       alert("Captcha salah. Silakan coba lagi.");
       generateCaptcha();
@@ -47,24 +47,30 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      // === UPDATE LOGIC: Redirect False ===
+      // Kita handle redirect manual agar bisa tangkap error
       const res = await signIn("credentials", {
         email,
         password,
-        redirect: false,
+        redirect: false, // JANGAN redirect otomatis
       });
 
-      if (res?.ok) {
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 500);
-      } else {
-        setIsLoading(false);
-        alert("Kredensial Salah. Periksa email @ombudsman.go.id Anda.");
+      setIsLoading(false);
+
+      if (res?.error) {
+        // Jika gagal, munculkan alert & reset captcha
+        alert("Gagal Masuk! Email atau Password salah.");
         generateCaptcha();
+        setPassword(""); 
+      } else if (res?.ok) {
+        // Jika sukses, baru redirect manual
+        router.push("/dashboard");
+        router.refresh(); 
       }
     } catch (error) {
       setIsLoading(false);
       console.error("Login Error:", error);
+      alert("Terjadi kesalahan sistem.");
     }
   };
 
@@ -72,7 +78,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 selection:bg-indigo-100">
       <div className="w-full max-w-md space-y-6 bg-white p-8 rounded-3xl shadow-2xl shadow-slate-200 border border-slate-100">
         
-        {/* HEADER: Brand Authority */}
+        {/* HEADER */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-50 rounded-2xl rotate-3 hover:rotate-0 transition-transform duration-300">
             <ShieldCheck className="w-9 h-9 text-indigo-600" />
@@ -88,6 +94,7 @@ export default function LoginPage() {
               <input
                 type="email"
                 placeholder="Email Resmi"
+                value={email}
                 className="w-full p-4 pl-12 bg-slate-50 border border-slate-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -98,6 +105,7 @@ export default function LoginPage() {
               <input
                 type="password"
                 placeholder="Password"
+                value={password}
                 className="w-full p-4 pl-12 bg-slate-50 border border-slate-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -105,7 +113,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* 2. SECURITY COMPONENT: Human Verification */}
+          {/* CAPTCHA */}
           <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="text-xs font-black text-indigo-900 uppercase italic tracking-tighter">Captcha: {captchaQuestion.q} =</span>
@@ -131,25 +139,17 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* 3. SSO INTEGRATION: Government Standards */}
+        {/* SSO & FOOTER */}
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100"></span></div>
           <div className="relative flex justify-center text-[8px] uppercase font-black text-slate-400 bg-white px-4 italic tracking-widest">Atau SSO Login</div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <button 
-            type="button"
-            onClick={() => signIn('google')} 
-            className="flex items-center justify-center gap-2 p-3 border border-slate-200 rounded-2xl text-[10px] font-black hover:bg-slate-50 transition-all uppercase tracking-tighter group"
-          >
+          <button type="button" onClick={() => alert("SSO Belum Dikonfigurasi")} className="flex items-center justify-center gap-2 p-3 border border-slate-200 rounded-2xl text-[10px] font-black hover:bg-slate-50 transition-all uppercase tracking-tighter group">
             <Globe className="w-3 h-3 text-rose-500 group-hover:animate-pulse" /> Google SSO
           </button>
-          <button 
-            type="button"
-            onClick={() => signIn('azure-ad')} 
-            className="flex items-center justify-center gap-2 p-3 border border-slate-200 rounded-2xl text-[10px] font-black hover:bg-slate-50 transition-all uppercase tracking-tighter group"
-          >
+          <button type="button" onClick={() => alert("SSO Belum Dikonfigurasi")} className="flex items-center justify-center gap-2 p-3 border border-slate-200 rounded-2xl text-[10px] font-black hover:bg-slate-50 transition-all uppercase tracking-tighter group">
             <KeyRound className="w-3 h-3 text-blue-500 group-hover:animate-pulse" /> Office 365
           </button>
         </div>
