@@ -29,8 +29,8 @@ export default async function TicketDetailPage({ params }: PageProps) {
   const tiket = await prisma.tiketAduan.findUnique({
     where: { id },
     include: {
-      pelapor: true,     // Hapus di sini
-      terlapor: true,    // Hapus di sini
+      pelapor: true,     
+      terlapor: true,    
       // Relasi history status (Timeline)
       riwayatStatus: {
         orderBy: { createdAt: "desc" }
