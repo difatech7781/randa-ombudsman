@@ -29,7 +29,13 @@ export function HandoverButton({ tiketId }: { tiketId: string }) {
       alert("Handover Berhasil! Tiket kini dalam tanggung jawab tim Pemeriksaan (PL).");
       window.location.reload();
     } else {
-      alert(result.error);
+      // FIX: TypeScript Error Solved
+      // Kita cek apakah properti 'error' ada, jika tidak kita ambil 'message', atau default string.
+      const errorMessage = "error" in result 
+        ? (result as any).error 
+        : (result as any).message || "Gagal memproses handover";
+      
+      alert(errorMessage);
     }
   };
 

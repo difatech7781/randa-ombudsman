@@ -4,15 +4,50 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    console.log("🚀 Memulai Seeding Data Strategis...");
+    console.log("🚀 Memulai Master Seeding (Auth + Strategic Data)...");
 
-    // 1. BERSIHKAN DATA LAMA (Agar grafik akurat)
-    // Hapus tiket dulu baru terlapor (karena referential integrity)
+    // 1. BERSIHKAN DATA LAMA
+    // Urutan delete penting karena foreign key constraints
+    await prisma.timPemeriksa.deleteMany({});
+    await prisma.lampiran.deleteMany({});
+    await prisma.pesanHistory.deleteMany({});
+    await prisma.riwayatStatus.deleteMany({});
     await prisma.tiketAduan.deleteMany({});
     await prisma.terlapor.deleteMany({});
+    await prisma.user.deleteMany({}); // Reset User agar password terupdate
     
-    // 2. BUAT DATA INSTANSI (TERLAPOR)
-    // Ini yang membuat grafik "Top Instansi" dan "Analisis Wilayah" hidup
+    // 2. BUAT USER DENGAN HASHED PASSWORD (Wajib untuk Login)
+    // Hash ini valid untuk password: "password123"
+    const PASSWORD_HASH = "$2y$10$vI8aWBnW3fID.ZQ4/zo1G.q1lRps.9cGLcZEiGDMVr5yUP1KUOYTa";
+
+    await prisma.user.createMany({
+      data: [
+        { 
+          name: "Super Admin", 
+          email: "admin@randa.id", 
+          role: "SUPERADMIN", 
+          password: PASSWORD_HASH, // <-- PENTING: Password sudah di-hash
+          noWhatsapp: "08111111111"
+        },
+        { 
+          name: "Andi Saputra", 
+          email: "pvl@randa.id", 
+          role: "ASISTEN_PVL", 
+          password: PASSWORD_HASH, 
+          noWhatsapp: "08222222222"
+        },
+        { 
+          name: "Budi Santoso", 
+          email: "riksa@randa.id", 
+          role: "ASISTEN_PL", 
+          password: PASSWORD_HASH, 
+          noWhatsapp: "08333333333"
+        },
+      ],
+      skipDuplicates: true,
+    });
+
+    // 3. BUAT DATA INSTANSI (TERLAPOR) - Untuk Grafik Dashboard
     const dinasPendidikan = await prisma.terlapor.create({
       data: {
         namaInstansi: "Dinas Pendidikan Kab. Nunukan",
@@ -45,7 +80,7 @@ export async function GET() {
       }
     });
 
-    // 3. AMBIL/BUAT PELAPOR (Wajib ada)
+    // 4. BUAT PELAPOR
     const pelapor = await prisma.pelapor.upsert({
       where: { noWhatsapp: "081234567890" },
       update: {},
@@ -58,7 +93,7 @@ export async function GET() {
       }
     });
 
-    // 4. BUAT TIKET YANG TERHUBUNG KE TERLAPOR
+    // 5. BUAT TIKET ADUAN (Terhubung ke Terlapor & Pelapor)
     console.log("Seeding Tiket Aduan...");
     await prisma.tiketAduan.createMany({
       data: [
@@ -66,7 +101,6 @@ export async function GET() {
         { 
           pelaporId: pelapor.id,
           terlaporId: dinasPendidikan.id, 
-          // judul: "...", <--- HAPUS INI
           kronologi: "[JUDUL: Pungutan Liar PPDB] Wali murid dimintai uang bangku sebesar 2 juta rupiah.",
           noAgendaResmi: "TKT-2026-001",
           status: "VERIFIKASI_FORMIL", 
@@ -105,7 +139,7 @@ export async function GET() {
           terlaporId: pertanahanKTT.id,
           kronologi: "[JUDUL: Sertifikat Tak Kunjung Terbit] Pengurusan PTSL sudah 2 tahun tidak ada kabar.",
           noAgendaResmi: "TKT-2026-004",
-          status: "VERIFIKASI_FORMIL", // FIX: Ubah dari "BARU" ke status valid
+          status: "VERIFIKASI_FORMIL",
           dugaanMaladmin: ["PENUNDAAN_BERLARUT"],
           latitude: 3.55, longitude: 117.25, 
           createdAt: new Date(Date.now() - 200000),
@@ -115,7 +149,7 @@ export async function GET() {
 
     return NextResponse.json({ 
       success: true, 
-      message: "✅ Data Strategis Berhasil Di-Seed! (Instansi & Wilayah Terhubung)" 
+      message: "✅ MASTER SEEDING SUKSES! (User Login Fixed + Dashboard Data Fixed)" 
     });
 
   } catch (error: any) {

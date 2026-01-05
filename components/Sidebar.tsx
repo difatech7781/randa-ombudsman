@@ -2,53 +2,54 @@
 "use client";
 
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react"; // 1. Pakai Hook Resmi NextAuth
 import { 
   LayoutDashboard, FileSearch, BarChart4, Users, LogOut, User, ShieldAlert 
 } from "lucide-react";
 
 export default function Sidebar() {
-  const { currentRole: userRole } = useMockRole();
+  // 2. Ambil data Role yang ASLI dari session login
+  const { data: session } = useSession();
+  const userRole = session?.user?.role; // Role dinamis dari database
+
   // CONFIGURATION: Menu Items
   const menuItems = [
     { 
       title: "Command Center", 
-      icon: <LayoutDashboard />, 
+      icon: <LayoutDashboard className="w-4 h-4" />, 
       path: "/dashboard", 
-      // Hanya Kaper & Superadmin
       roles: ["SUPERADMIN", "KEPALA_PERWAKILAN"] 
     },
     { 
       title: "Dashboard Ops", 
-      icon: <LayoutDashboard />, 
+      icon: <LayoutDashboard className="w-4 h-4" />, 
       path: "/dashboard", 
-      // Asisten masuk sini
       roles: ["ASISTEN_PVL", "ASISTEN_PL", "ASISTEN_PC"] 
     },
     { 
       title: "Tiket Aduan", 
-      icon: <FileSearch />, 
-      // FIX 404: Arahkan ke folder 'inbox' yang sudah ada
+      icon: <FileSearch className="w-4 h-4" />, 
       path: "/dashboard/inbox", 
-      // Semua Asisten + Superadmin butuh akses ini
       roles: ["SUPERADMIN", "ASISTEN_PVL", "ASISTEN_PL", "ASISTEN_PC"] 
     },
     { 
       title: "Strategic Analytics", 
-      icon: <BarChart4 />, 
+      icon: <BarChart4 className="w-4 h-4" />, 
       path: "/dashboard/analytics", 
       roles: ["SUPERADMIN", "KEPALA_PERWAKILAN"] 
     },
     { 
       title: "User Management", 
-      icon: <Users />, 
+      icon: <Users className="w-4 h-4" />, 
       path: "/dashboard/users", 
       roles: ["SUPERADMIN"] 
     },
   ];
 
-  // Filter menu berdasarkan Role
-  const filteredMenu = menuItems.filter(item => item.roles.includes(userRole));
+  // 3. Filter menu (Safety check: jika role belum load, return false)
+  const filteredMenu = menuItems.filter(item => 
+    userRole ? item.roles.includes(userRole) : false
+  );
 
   return (
     <aside className="w-64 bg-slate-900 h-screen flex flex-col fixed left-0 top-0 border-r border-slate-800 z-50 shadow-2xl">
@@ -74,9 +75,15 @@ export default function Sidebar() {
             </div>
           </Link>
         ))}
+        {/* State Loading / Guest */}
+        {!userRole && (
+          <div className="px-4 py-10 text-center">
+            <p className="text-[10px] text-slate-600 animate-pulse uppercase tracking-widest">Memuat Menu...</p>
+          </div>
+        )}
       </nav>
 
-      {/* FOOTER: User Profile & Logout (FIX MISSING BUTTON) */}
+      {/* FOOTER: User Profile & Logout */}
       <div className="p-4 border-t border-slate-800 bg-slate-900">
         <div className="flex items-center gap-3 mb-4 px-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700/50">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-inner">
@@ -84,7 +91,9 @@ export default function Sidebar() {
           </div>
           <div className="flex-1 overflow-hidden">
             <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Logged in as</p>
-            <p className="text-xs font-bold text-white truncate font-mono">{userRole}</p>
+            <p className="text-xs font-bold text-white truncate font-mono">
+              {userRole || "Guest"}
+            </p>
           </div>
         </div>
         
